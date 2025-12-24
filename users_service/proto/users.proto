@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package users;
+
+option go_package = "github.com/yourteam/users-service/proto";
+
+service UserService {
+  rpc CreateUser(CreateUserRequest) returns (UserResponse);
+  rpc GetUser(GetUserRequest) returns (UserResponse);
+  rpc UpdateUser(UpdateUserRequest) returns (UserResponse);
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  rpc AuthenticateUser(AuthRequest) returns (AuthResponse);
+}
+
+message CreateUserRequest {
+  string name = 1;
+  string password = 2;
+  string user_type = 3;
+  string email = 4;
+  string cpf = 5;
+  string phone = 6;
+}
+
+message GetUserRequest {
+  int32 user_id = 1;
+}
+
+message UpdateUserRequest {
+  int32 user_id = 1;
+  string name = 2;
+  string email = 3;
+  string user_type = 4;
+  string phone = 5;
+}
+
+message DeleteUserRequest {
+  int32 user_id = 1;
+}
+
+message ListUsersRequest {
+  string user_type = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message AuthRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message UserResponse {
+  int32 user_id = 1;
+  string name = 2;
+  string email = 3;
+  string user_type = 4;
+  string cpf = 5;
+  string phone = 6;
+  string created_at = 7;
+  bool success = 8;
+  string message = 9;
+}
+
+message DeleteUserResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ListUsersResponse {
+  repeated UserResponse users = 1;
+  int32 total = 2;
+}
+
+message AuthResponse {
+  bool success = 1;
+  string message = 2;
+  int32 user_id = 3;
+  string user_type = 4;
+  string token = 5;
+}
