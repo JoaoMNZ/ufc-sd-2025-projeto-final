@@ -18,20 +18,22 @@ def agendar():
     if not dados:
         return jsonify({"erro": "JSON invalido"}), 400
 
-    # extraindo os dados, incluindo a especialidade que foi pedido no pdf
+    # extraindo os dados, incluindo pagamento conforme pedido do grupo
     medico_id = dados.get('medico_id')
     paciente_id = dados.get('paciente_id')
     data_hora = dados.get('data_hora')
     especialidade = dados.get('especialidade')
+    tipo_pagamento = dados.get('tipo_pagamento')
+    detalhes_pagamento = dados.get('detalhes_pagamento')
 
     # validação simples antes de enviar
-    if not all([medico_id, paciente_id, data_hora, especialidade]):
-         return jsonify({"erro": "Faltam dados (medico_id, paciente_id, data_hora, especialidade)"}), 400
+    if not all([medico_id, paciente_id, data_hora, especialidade, tipo_pagamento]):
+         return jsonify({"erro": "Faltam dados obrigatorios."}), 400
 
     try:
-        # chama a função no server.py
+        # chama a função no server.py passando os novos argumentos
         print(f"[REST] Enviando para RPC: Medico {medico_id}, Data {data_hora}")
-        resposta = rpc_proxy.agendar_consulta(medico_id, paciente_id, data_hora, especialidade)
+        resposta = rpc_proxy.agendar_consulta(medico_id, paciente_id, data_hora, especialidade, tipo_pagamento, detalhes_pagamento)
         return jsonify(resposta), 200
     except Exception as e:
         return jsonify({"erro": f"Falha na comunicacao com RPC: {str(e)}"}), 500

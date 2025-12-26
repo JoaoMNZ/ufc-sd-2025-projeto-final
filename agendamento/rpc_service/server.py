@@ -5,24 +5,41 @@ from xmlrpc.server import SimpleXMLRPCRequestHandler
 agendamentos_mock = []
 ultimo_id = 0  # contador pra gerar os ids
 
-def verificar_disponibilidade(medico_id, data_hora):
-    for agendamento in agendamentos_mock:
-        # verificando se é o mesmo medico, o mesmo horario e se a consulta nao esta cancelada
-        if (agendamento['medico_id'] == medico_id and 
-            agendamento['data_hora'] == data_hora and 
-            agendamento['status'] != 'cancelada'):
-            return False # se ta ocupado
-    return True # se ta livre
+def verificar_hora_cheia(data_hora):
+    # regra do grupo: apenas horas cheias permitidas (terminadas em :00)
+    return data_hora.endswith(":00")
 
-def agendar_consulta(medico_id, paciente_id, data_hora, especialidade):
+def verificar_disponibilidade(medico_id, paciente_id, data_hora):
+    for agendamento in agendamentos_mock:
+        # ignora se tiver cancelada
+        if agendamento['status'] == 'cancelada':
+            continue
+
+        if agendamento['data_hora'] == data_hora:
+            # regra 1: medico nao pode atender dois ao mesmo tempo
+            if agendamento['medico_id'] == medico_id:
+                return {"disponivel": False, "mensagem": "Horario indisponivel para este medico."}
+            
+            # regra 2: paciente nao pode estar em dois lugares ao mesmo tempo
+            if agendamento['paciente_id'] == paciente_id:
+                return {"disponivel": False, "mensagem": "Paciente ja possui agendamento neste horario."}
+                
+    return {"disponivel": True}
+
+def agendar_consulta(medico_id, paciente_id, data_hora, especialidade, tipo_pagamento, detalhes_pagamento):
     global ultimo_id
-    print(f"[RPC] Novo pedido: Medico {medico_id} ({especialidade}) as {data_hora}")
+    print(f"[RPC] Novo pedido: Medico {medico_id} | Paciente {paciente_id} | {data_hora}")
     
-    # verificação de conflitos
-    if not verificar_disponibilidade(medico_id, data_hora):
-        return {"status": "erro", "mensagem": "Horario indisponivel para este medico."}
+    # validação de hora cheia
+    if not verificar_hora_cheia(data_hora):
+        return {"status": "erro", "mensagem": "Apenas horarios cheios sao permitidos (ex: 08:00)."}
+
+    # verificação de conflitos (medico e paciente)
+    checa = verificar_disponibilidade(medico_id, paciente_id, data_hora)
+    if not checa['disponivel']:
+        return {"status": "erro", "mensagem": checa['mensagem']}
     
-    # campos pedidos no pdf
+    # campos pedidos no pdf e pelo grupo
     ultimo_id += 1
     novo_agendamento = {
         "id": ultimo_id,
@@ -30,11 +47,13 @@ def agendar_consulta(medico_id, paciente_id, data_hora, especialidade):
         "paciente_id": paciente_id,
         "data_hora": data_hora,
         "especialidade": especialidade,
-        "status": "agendada" # status inicial padrão
+        "tipo_pagamento": tipo_pagamento,       # novo campo (convenio/particular)
+        "detalhes_pagamento": detalhes_pagamento, # cartao ou nome do convenio
+        "status": "aguardando_validacao"        # status inicial mudou conforme o fluxo do grupo
     }
     agendamentos_mock.append(novo_agendamento)
     
-    return {"status": "sucesso", "mensagem": "Consulta agendada!", "id_consulta": ultimo_id}
+    return {"status": "sucesso", "mensagem": "Pré-agendamento realizado! Aguardando validação.", "id_consulta": ultimo_id}
 
 def listar_consultas():
     return agendamentos_mock
