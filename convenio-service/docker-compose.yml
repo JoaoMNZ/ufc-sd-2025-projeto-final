@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  convenio-service:
+    build:
+      context: ./service
+      dockerfile: Dockerfile
+    container_name: convenio-backend
+    ports:
+      - "5003:5003"
+    networks:
+      - convenio-network
+    healthcheck:
+      test: ["CMD", "java", "-version"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  convenio-interface:
+    build:
+      context: ./interface
+      dockerfile: Dockerfile
+    container_name: convenio-interface
+    ports:
+      - "5000:5000"
+    depends_on:
+      - convenio-service
+    networks:
+      - convenio-network
+    environment:
+      - BACKEND_HOST=convenio-service
+      - BACKEND_PORT=5003
+
+networks:
+  convenio-network:
+    driver: bridge
