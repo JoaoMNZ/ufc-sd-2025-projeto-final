@@ -11,9 +11,10 @@ import users_pb2_grpc
 
 app = Flask(__name__)
 
-# Configuração do canal gRPC (Conecta no Go)
-# Se rodar via Docker, mude 'localhost' para o nome do serviço no compose
-GRPC_SERVER = 'localhost:50051' 
+# --- CORREÇÃO AQUI ---
+# Pega o endereço do ambiente (Docker) ou usa localhost como fallback
+GRPC_SERVER = os.getenv('GRPC_SERVER', 'localhost:50051')
+print(f"🔗 Conectando ao gRPC em: {GRPC_SERVER}") 
 
 def get_grpc_stub():
     channel = grpc.insecure_channel(GRPC_SERVER)
@@ -30,8 +31,6 @@ def string_to_role(role_str):
     return roles.get(role_str.lower(), users_pb2.PACIENTE) # Default: Paciente
 
 def role_to_string(role_enum):
-    # O Protobuf retorna o nome do enum (ex: MEDIC) se converter para string
-    # Mas aqui simplificamos retornando o valor inteiro ou mapeando de volta se quiser
     return str(role_enum)
 
 # --- Rotas REST ---
@@ -111,11 +110,9 @@ def login():
 @app.route('/users', methods=['GET'])
 def list_users():
     stub = get_grpc_stub()
-    # Pega parâmetros da URL ?limit=10&user_type=doctor
     u_type = request.args.get('user_type', '')
     limit = int(request.args.get('limit', 50))
     
-    # Mapeia string para enum se fornecido
     enum_type = string_to_role(u_type) if u_type else 0 
 
     try:

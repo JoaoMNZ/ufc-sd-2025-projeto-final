@@ -2,7 +2,7 @@ import json
 import pika
 import time
 
-RABBITMQ_HOST = "rabbitmq"
+RABBITMQ_HOST = "localhost"
 EXCHANGE = "notificacoes"
 
 def callback(ch, method, properties, body):
@@ -12,28 +12,27 @@ def callback(ch, method, properties, body):
         agendamento = evento.get("agendamento_id", "N/A")
 
         if tipo == "AGENDAMENTO_CRIADO":
-            print(f"🕒 Agendamento {agendamento} criado e aguardando validação")
+            print(f"[NOTIFICACAO] Agendamento {agendamento} criado. Status: AGUARDANDO VALIDACAO")
 
-        elif tipo == "AGENDAMENTO_VALIDADO":
-            print(f"✅ Agendamento {agendamento} foi VALIDADO")
+        elif tipo == "AGENDAMENTO_CONFIRMADA" or tipo == "AGENDAMENTO_VALIDADO":
+            print(f"[NOTIFICACAO] Agendamento {agendamento} CONFIRMADO com sucesso.")
 
-        elif tipo == "AGENDAMENTO_INVALIDO":
-            print(f"❌ Agendamento {agendamento} foi INVALIDADO")
-            print(f"Motivo: {evento.get('motivo', 'não informado')}")
+        elif tipo == "AGENDAMENTO_INVALIDO" or tipo == "AGENDAMENTO_REJEITADA":
+            print(f"[NOTIFICACAO] Agendamento {agendamento} REJEITADO. Motivo: {evento.get('motivo', 'Reprovado na validacao')}")
 
         elif tipo == "AGENDAMENTO_CANCELADO":
-            print(f"⚠️ Agendamento {agendamento} foi CANCELADO")
+            print(f"[NOTIFICACAO] Agendamento {agendamento} CANCELADO.")
 
         else:
-            print(f"🔔 Evento desconhecido recebido: {evento}")
+            print(f"[INFO] Evento recebido: {evento}")
 
     except Exception as e:
-        print(f"❌ Erro ao processar mensagem: {e}")
+        print(f"[ERRO] Falha ao processar mensagem: {e}")
 
 def conectar():
     while True:
         try:
-            print("🔌 Cliente conectando ao RabbitMQ...")
+            print("[INFO] Conectando ao RabbitMQ...")
             return pika.BlockingConnection(
                 pika.ConnectionParameters(
                     host=RABBITMQ_HOST,
@@ -41,13 +40,13 @@ def conectar():
                 )
             )
         except pika.exceptions.AMQPConnectionError:
-            print("⏳ Cliente aguardando RabbitMQ...")
+            print("[INFO] Aguardando serviço de mensageria...")
             time.sleep(3)
 
 def main():
-    print("🚀 Iniciando cliente de notificações...")
+    print("--- INICIANDO CLIENTE DE NOTIFICAÇÕES ---")
     connection = conectar()
-    print("✅ Cliente conectado ao RabbitMQ")
+    print("[INFO] Conexão estabelecida.")
     channel = connection.channel()
 
     channel.exchange_declare(
@@ -58,7 +57,7 @@ def main():
     queue = channel.queue_declare(queue="", exclusive=True)
     channel.queue_bind(exchange=EXCHANGE, queue=queue.method.queue)
 
-    print("📡 Cliente aguardando notificações...")
+    print("[INFO] Aguardando mensagens...")
     channel.basic_consume(
         queue=queue.method.queue,
         on_message_callback=callback,

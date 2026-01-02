@@ -1,25 +1,18 @@
-
-FROM maven:3.8-openjdk-17 AS build
+# Usamos uma imagem mais moderna do Maven para evitar erros de 403
+FROM maven:3.9.6-eclipse-temurin-17 AS build
 WORKDIR /app
 
-# Copiar pom.xml e baixar dependências
-COPY pom.xml .
-RUN mvn dependency:go-offline -B
+# Copia todo o projeto
+COPY . .
 
-# Copiar código fonte
-COPY src ./src
-
-# Compilar e criar Fat JAR
+# Compila direto (removemos o go-offline que estava falhando)
 RUN mvn clean package -DskipTests
 
-# Listar arquivos gerados (debug)
-RUN echo "=== Arquivos JAR gerados ===" && ls -lh /app/target/*.jar
-
-# Stage 2: Runtime
+# --- Parte 2: Imagem Final Leve ---
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
-# Copiar o JAR final (não o original)
+# Pega o JAR que foi gerado no passo anterior
 COPY --from=build /app/target/convenio-service.jar app.jar
 
 EXPOSE 5003

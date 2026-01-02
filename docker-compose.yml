@@ -1,34 +1,122 @@
+version: '3.8'
+
 services:
+  # --- 1. BANCO DE DADOS ---
+  database:
+    image: postgres:16
+    container_name: clinica-db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: clinica-app
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d clinica-app"]
+      interval: 10s
+      retries: 5
+    networks:
+      - minharede
+
+  # --- 2. MENSAGERIA (RabbitMQ) ---
   rabbitmq:
     image: rabbitmq:3-management
+    container_name: rabbitmq
     ports:
       - "5672:5672"
       - "15672:15672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 5s
-      timeout: 5s
+      interval: 10s
       retries: 5
+    networks:
+      - minharede
 
+  # --- 3. SERVIÇOS DE NEGÓCIO ---
+
+  # Notificações (Integrante 5) - SEM PORTA EXPOSTA (Interno)
   notificacoes:
     build: ./notificacoes
-    command: python notificacoes_service.py
+    container_name: notificacoes_service
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - minharede
+
+  # Agendamento (Você - Python) - PORTA 5000
+  agendamento-rpc:
+    build: ./agendamento/rpc_service
+    container_name: agendamento_rpc
+    networks:
+      - minharede
+
+  agendamento-interface:
+    build: ./agendamento/rest_interface
+    container_name: agendamento_interface
     ports:
       - "5000:5000"
+    environment:
+      - RPC_HOST=agendamento-rpc
+      - NOTIFICACAO_URL=http://notificacoes:5000/enviar
     depends_on:
-      rabbitmq:
-        condition: service_healthy
+      - agendamento-rpc
+      - notificacoes
+    networks:
+      - minharede
 
-  cliente:
-    build: ./notificacoes
-    command: python -u cliente_notificacoes.py
+  # Usuários (Go) - PORTA 5001
+  users-service:
+    build: ./users_service/service
+    container_name: users_backend
+    environment:
+      - DB_HOST=database
+      - GRPC_PORT=50051
     depends_on:
-      rabbitmq:
+      database:
         condition: service_healthy
+    networks:
+      - minharede
 
-  mock_agendamento:
-    build: ./notificacoes
-    command: python eventos_mock.py
+  users-interface:
+    build: ./users_service/interface
+    container_name: users_interface
+    restart: on-failure  # <--- CORREÇÃO: Tenta reiniciar se cair ao iniciar
+    ports:
+      - "5001:5000"
+    environment:
+      - GRPC_SERVER=users-service:50051
     depends_on:
-      rabbitmq:
-        condition: service_healthy
+      - users-service
+    networks:
+      - minharede
+
+  # Convênio (Java) - PORTAS 5002 e 5003
+  convenio-service:
+    build: 
+      context: ./convenio-service/service
+    container_name: convenio_backend
+    ports:
+      - "5003:5003"
+    networks:
+      - minharede
+
+  convenio-interface:
+    build: 
+      context: ./convenio-service/interface
+    container_name: convenio_interface
+    ports:
+      - "5002:5000"
+    environment:
+      - BACKEND_HOST=convenio-service
+      - BACKEND_PORT=5003
+    depends_on:
+      - convenio-service
+    networks:
+      - minharede
+
+networks:
+  minharede:
+    driver: bridge
