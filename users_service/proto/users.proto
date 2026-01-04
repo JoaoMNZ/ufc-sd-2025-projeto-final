@@ -4,13 +4,15 @@ package users;
 
 option go_package = "./pb";
 
+import "google/protobuf/empty.proto";
+
 service UserService {
   rpc CreateUser(CreateUserRequest) returns (UserResponse);
   rpc AuthenticateUser(AuthRequest) returns (AuthResponse);
   rpc GetUser(GetUserRequest) returns (UserResponse);
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
   rpc UpdateUser(UpdateUserRequest) returns (UserResponse);
-  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+  rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
 }
 
 enum UserType {
@@ -49,13 +51,10 @@ message GetUserRequest {
 message ListUsersRequest {
   int32 token = 1;
   UserType user_type = 2; // Filtro opcional por tipo de usuário.
-  int32 limit = 3;
-  int32 offset = 4;
 }
 
 message ListUsersResponse {
   repeated UserResponse users = 1;
-  int32 total = 2;
 }
 
 message UpdateUserRequest {

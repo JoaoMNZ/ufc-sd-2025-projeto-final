@@ -9,6 +9,7 @@ package pb
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -206,11 +207,10 @@ func (x *AuthRequest) GetPassword() string {
 
 type AuthResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	Token         int32                  `protobuf:"varint,2,opt,name=token,proto3" json:"token,omitempty"`
-	UserId        int32                  `protobuf:"varint,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Token         int32                  `protobuf:"varint,1,opt,name=token,proto3" json:"token,omitempty"`
+	UserId        int32                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	UserType      UserType               `protobuf:"varint,4,opt,name=user_type,json=userType,proto3,enum=users.UserType" json:"user_type,omitempty"`
-	Message       string                 `protobuf:"bytes,5,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -245,13 +245,6 @@ func (*AuthResponse) Descriptor() ([]byte, []int) {
 	return file_proto_users_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *AuthResponse) GetSuccess() bool {
-	if x != nil {
-		return x.Success
-	}
-	return false
-}
-
 func (x *AuthResponse) GetToken() int32 {
 	if x != nil {
 		return x.Token
@@ -266,18 +259,18 @@ func (x *AuthResponse) GetUserId() int32 {
 	return 0
 }
 
+func (x *AuthResponse) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 func (x *AuthResponse) GetUserType() UserType {
 	if x != nil {
 		return x.UserType
 	}
 	return UserType_UNKNOWN_ROLE
-}
-
-func (x *AuthResponse) GetMessage() string {
-	if x != nil {
-		return x.Message
-	}
-	return ""
 }
 
 type GetUserRequest struct {
@@ -335,9 +328,7 @@ func (x *GetUserRequest) GetUserId() int32 {
 type ListUsersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Token         int32                  `protobuf:"varint,1,opt,name=token,proto3" json:"token,omitempty"`
-	UserType      UserType               `protobuf:"varint,2,opt,name=user_type,json=userType,proto3,enum=users.UserType" json:"user_type,omitempty"` // Filtro por tipo de usuário.
-	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
-	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
+	UserType      UserType               `protobuf:"varint,2,opt,name=user_type,json=userType,proto3,enum=users.UserType" json:"user_type,omitempty"` // Filtro opcional por tipo de usuário.
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -386,24 +377,9 @@ func (x *ListUsersRequest) GetUserType() UserType {
 	return UserType_UNKNOWN_ROLE
 }
 
-func (x *ListUsersRequest) GetLimit() int32 {
-	if x != nil {
-		return x.Limit
-	}
-	return 0
-}
-
-func (x *ListUsersRequest) GetOffset() int32 {
-	if x != nil {
-		return x.Offset
-	}
-	return 0
-}
-
 type ListUsersResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Users         []*UserResponse        `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
-	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -445,17 +421,10 @@ func (x *ListUsersResponse) GetUsers() []*UserResponse {
 	return nil
 }
 
-func (x *ListUsersResponse) GetTotal() int32 {
-	if x != nil {
-		return x.Total
-	}
-	return 0
-}
-
 type UpdateUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Token         int32                  `protobuf:"varint,1,opt,name=token,proto3" json:"token,omitempty"`
-	UserId        int32                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // ID de quem será alterado.
+	UserId        int32                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	Email         string                 `protobuf:"bytes,4,opt,name=email,proto3" json:"email,omitempty"`
 	Password      string                 `protobuf:"bytes,5,opt,name=password,proto3" json:"password,omitempty"`
@@ -648,63 +617,11 @@ func (x *DeleteUserRequest) GetUserId() int32 {
 	return 0
 }
 
-type DeleteUserResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *DeleteUserResponse) Reset() {
-	*x = DeleteUserResponse{}
-	mi := &file_proto_users_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *DeleteUserResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*DeleteUserResponse) ProtoMessage() {}
-
-func (x *DeleteUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_users_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DeleteUserResponse.ProtoReflect.Descriptor instead.
-func (*DeleteUserResponse) Descriptor() ([]byte, []int) {
-	return file_proto_users_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *DeleteUserResponse) GetSuccess() bool {
-	if x != nil {
-		return x.Success
-	}
-	return false
-}
-
-func (x *DeleteUserResponse) GetMessage() string {
-	if x != nil {
-		return x.Message
-	}
-	return ""
-}
-
 var File_proto_users_proto protoreflect.FileDescriptor
 
 const file_proto_users_proto_rawDesc = "" +
 	"\n" +
-	"\x11proto/users.proto\x12\x05users\"\x9d\x01\n" +
+	"\x11proto/users.proto\x12\x05users\x1a\x1bgoogle/protobuf/empty.proto\"\x9d\x01\n" +
 	"\x11CreateUserRequest\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\x05R\x05token\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
@@ -713,24 +630,20 @@ const file_proto_users_proto_rawDesc = "" +
 	"\tuser_type\x18\x05 \x01(\x0e2\x0f.users.UserTypeR\buserType\"?\n" +
 	"\vAuthRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1a\n" +
-	"\bpassword\x18\x02 \x01(\tR\bpassword\"\x9f\x01\n" +
-	"\fAuthResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
-	"\x05token\x18\x02 \x01(\x05R\x05token\x12\x17\n" +
-	"\auser_id\x18\x03 \x01(\x05R\x06userId\x12,\n" +
-	"\tuser_type\x18\x04 \x01(\x0e2\x0f.users.UserTypeR\buserType\x12\x18\n" +
-	"\amessage\x18\x05 \x01(\tR\amessage\"?\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\"\x7f\n" +
+	"\fAuthResponse\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\x05R\x05token\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\x05R\x06userId\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12,\n" +
+	"\tuser_type\x18\x04 \x01(\x0e2\x0f.users.UserTypeR\buserType\"?\n" +
 	"\x0eGetUserRequest\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\x05R\x05token\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\x05R\x06userId\"\x84\x01\n" +
+	"\auser_id\x18\x02 \x01(\x05R\x06userId\"V\n" +
 	"\x10ListUsersRequest\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\x05R\x05token\x12,\n" +
-	"\tuser_type\x18\x02 \x01(\x0e2\x0f.users.UserTypeR\buserType\x12\x14\n" +
-	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x04 \x01(\x05R\x06offset\"T\n" +
+	"\tuser_type\x18\x02 \x01(\x0e2\x0f.users.UserTypeR\buserType\">\n" +
 	"\x11ListUsersResponse\x12)\n" +
-	"\x05users\x18\x01 \x03(\v2\x13.users.UserResponseR\x05users\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x05R\x05total\"\x88\x01\n" +
+	"\x05users\x18\x01 \x03(\v2\x13.users.UserResponseR\x05users\"\x88\x01\n" +
 	"\x11UpdateUserRequest\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\x05R\x05token\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\x05R\x06userId\x12\x12\n" +
@@ -744,17 +657,14 @@ const file_proto_users_proto_rawDesc = "" +
 	"\tuser_type\x18\x04 \x01(\x0e2\x0f.users.UserTypeR\buserType\"B\n" +
 	"\x11DeleteUserRequest\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\x05R\x05token\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\x05R\x06userId\"H\n" +
-	"\x12DeleteUserResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage*\\\n" +
+	"\auser_id\x18\x02 \x01(\x05R\x06userId*\\\n" +
 	"\bUserType\x12\x10\n" +
 	"\fUNKNOWN_ROLE\x10\x00\x12\x11\n" +
 	"\rADMINISTRADOR\x10\x01\x12\n" +
 	"\n" +
 	"\x06MEDICO\x10\x02\x12\x11\n" +
 	"\rRECEPCIONISTA\x10\x03\x12\f\n" +
-	"\bPACIENTE\x10\x042\xfe\x02\n" +
+	"\bPACIENTE\x10\x042\xfb\x02\n" +
 	"\vUserService\x12;\n" +
 	"\n" +
 	"CreateUser\x12\x18.users.CreateUserRequest\x1a\x13.users.UserResponse\x12;\n" +
@@ -762,9 +672,9 @@ const file_proto_users_proto_rawDesc = "" +
 	"\aGetUser\x12\x15.users.GetUserRequest\x1a\x13.users.UserResponse\x12>\n" +
 	"\tListUsers\x12\x17.users.ListUsersRequest\x1a\x18.users.ListUsersResponse\x12;\n" +
 	"\n" +
-	"UpdateUser\x12\x18.users.UpdateUserRequest\x1a\x13.users.UserResponse\x12A\n" +
+	"UpdateUser\x12\x18.users.UpdateUserRequest\x1a\x13.users.UserResponse\x12>\n" +
 	"\n" +
-	"DeleteUser\x12\x18.users.DeleteUserRequest\x1a\x19.users.DeleteUserResponseB\x06Z\x04./pbb\x06proto3"
+	"DeleteUser\x12\x18.users.DeleteUserRequest\x1a\x16.google.protobuf.EmptyB\x06Z\x04./pbb\x06proto3"
 
 var (
 	file_proto_users_proto_rawDescOnce sync.Once
@@ -779,19 +689,19 @@ func file_proto_users_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_users_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_proto_users_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_proto_users_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_proto_users_proto_goTypes = []any{
-	(UserType)(0),              // 0: users.UserType
-	(*CreateUserRequest)(nil),  // 1: users.CreateUserRequest
-	(*AuthRequest)(nil),        // 2: users.AuthRequest
-	(*AuthResponse)(nil),       // 3: users.AuthResponse
-	(*GetUserRequest)(nil),     // 4: users.GetUserRequest
-	(*ListUsersRequest)(nil),   // 5: users.ListUsersRequest
-	(*ListUsersResponse)(nil),  // 6: users.ListUsersResponse
-	(*UpdateUserRequest)(nil),  // 7: users.UpdateUserRequest
-	(*UserResponse)(nil),       // 8: users.UserResponse
-	(*DeleteUserRequest)(nil),  // 9: users.DeleteUserRequest
-	(*DeleteUserResponse)(nil), // 10: users.DeleteUserResponse
+	(UserType)(0),             // 0: users.UserType
+	(*CreateUserRequest)(nil), // 1: users.CreateUserRequest
+	(*AuthRequest)(nil),       // 2: users.AuthRequest
+	(*AuthResponse)(nil),      // 3: users.AuthResponse
+	(*GetUserRequest)(nil),    // 4: users.GetUserRequest
+	(*ListUsersRequest)(nil),  // 5: users.ListUsersRequest
+	(*ListUsersResponse)(nil), // 6: users.ListUsersResponse
+	(*UpdateUserRequest)(nil), // 7: users.UpdateUserRequest
+	(*UserResponse)(nil),      // 8: users.UserResponse
+	(*DeleteUserRequest)(nil), // 9: users.DeleteUserRequest
+	(*emptypb.Empty)(nil),     // 10: google.protobuf.Empty
 }
 var file_proto_users_proto_depIdxs = []int32{
 	0,  // 0: users.CreateUserRequest.user_type:type_name -> users.UserType
@@ -810,7 +720,7 @@ var file_proto_users_proto_depIdxs = []int32{
 	8,  // 13: users.UserService.GetUser:output_type -> users.UserResponse
 	6,  // 14: users.UserService.ListUsers:output_type -> users.ListUsersResponse
 	8,  // 15: users.UserService.UpdateUser:output_type -> users.UserResponse
-	10, // 16: users.UserService.DeleteUser:output_type -> users.DeleteUserResponse
+	10, // 16: users.UserService.DeleteUser:output_type -> google.protobuf.Empty
 	11, // [11:17] is the sub-list for method output_type
 	5,  // [5:11] is the sub-list for method input_type
 	5,  // [5:5] is the sub-list for extension type_name
@@ -829,7 +739,7 @@ func file_proto_users_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_users_proto_rawDesc), len(file_proto_users_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   10,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -2,14 +2,20 @@ package service
 
 import (
 	"context"
-	"fmt"
+    "database/sql"
+
 	"golang.org/x/crypto/bcrypt"
+
+    "google.golang.org/grpc/status"
+    "google.golang.org/grpc/codes"
+    "google.golang.org/protobuf/types/known/emptypb"
+
 	pb "users_service/pb"
 )
 
 func (s *UserServer) CreateUser(ctx context.Context, req *pb.CreateUserRequest) (*pb.UserResponse, error) {
 	// Verifica a role do requisitante através do token.
-	requesterRole, err := s.getRequesterRole(req.Token)
+	requesterRole, err := s.getRequesterRole(ctx, req.Token)
     if err != nil {
         return nil, err
     }
@@ -32,35 +38,35 @@ func (s *UserServer) CreateUser(ctx context.Context, req *pb.CreateUserRequest) 
     }
 
 	if !allowed {
-        return nil, fmt.Errorf("permissão negada: %s não pode criar %s", requesterRole, targetRole)
+        return nil, status.Error(codes.PermissionDenied, "permissão negada para criar este tipo de usuário")
     }
 
     if req.Name == "" || req.Email == "" || req.Password == "" {
-        return nil, fmt.Errorf("erro: todos os campos são obrigatórios")
+        return nil, status.Error(codes.InvalidArgument, "todos os campos são obrigatórios")
     }
 
 	var emailExists bool
     queryCheck := `SELECT EXISTS(SELECT 1 FROM usuario WHERE email = $1)`
-    err = s.DB.QueryRow(queryCheck, req.Email).Scan(&emailExists)
+    err = s.DB.QueryRowContext(ctx, queryCheck, req.Email).Scan(&emailExists)
     if err != nil {
-        return nil, fmt.Errorf("erro ao verificar email no banco: %v", err)
+        return nil, status.Error(codes.Internal, "erro interno no servidor")
     }
 
     if emailExists {
-        return nil, fmt.Errorf("erro: o email '%s' já está cadastrado", req.Email)
+        return nil, status.Error(codes.AlreadyExists, "email já cadastrado")
     }
 	
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, fmt.Errorf("erro ao gerar hash da senha: %v", err)
+        return nil, status.Error(codes.Internal, "erro interno no servidor")
 	}
 
 	var userID int32
     tipoStr := req.UserType.String()
 	query := `INSERT INTO usuario (nome, email, senha, tipo) VALUES ($1, $2, $3, $4) RETURNING id`
-	err = s.DB.QueryRow(query, req.Name, req.Email, string(hashedPassword), tipoStr).Scan(&userID)
+	err = s.DB.QueryRowContext(ctx, query, req.Name, req.Email, string(hashedPassword), tipoStr).Scan(&userID)
 	if err != nil {
-		return nil, fmt.Errorf("erro ao salvar no banco: %v", err)
+		return nil, status.Error(codes.Internal, "erro interno no servidor")
 	}
 
 	return &pb.UserResponse{
@@ -72,7 +78,7 @@ func (s *UserServer) CreateUser(ctx context.Context, req *pb.CreateUserRequest) 
 }
 
 func (s *UserServer) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.UserResponse, error) {
-    requesterRole, err := s.getRequesterRole(req.Token)
+    requesterRole, err := s.getRequesterRole(ctx, req.Token)
     if err != nil {
         return nil, err
     }
@@ -81,12 +87,13 @@ func (s *UserServer) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.U
     var targetRoleStr string
     
     query := `SELECT id, nome, email, tipo FROM usuario WHERE id = $1`
-    err = s.DB.QueryRow(query, req.UserId).Scan(&user.UserId, &user.Name, &user.Email, &targetRoleStr)
+    err = s.DB.QueryRowContext(ctx, query, req.UserId).Scan(&user.UserId, &user.Name, &user.Email, &targetRoleStr)
     
     if err == sql.ErrNoRows {
-        return nil, fmt.Errorf("usuário não encontrado")
-    } else if err != nil {
-        return nil, fmt.Errorf("erro ao buscar usuário: %v", err)
+        return nil, status.Error(codes.NotFound, "usuário não encontrado")
+    } 
+    if err != nil {
+        return nil, status.Error(codes.Internal, "erro interno no servidor")
     }
 
     targetRole := stringToRole(targetRoleStr)
@@ -100,79 +107,85 @@ func (s *UserServer) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.U
     // Verifica se requisitante possui autorização para visualizar o usuário. 
     switch requesterRole {
     case pb.UserType_PACIENTE:
-        return nil, fmt.Errorf("acesso negado: paciente só pode ver seu próprio perfil")
+        return nil, status.Error(codes.PermissionDenied, "acesso negado")
 
     case pb.UserType_MEDICO:
         if targetRole != pb.UserType_PACIENTE {
-            return nil, fmt.Errorf("acesso negado: médicos só podem visualizar pacientes")
+            return nil, status.Error(codes.PermissionDenied, "acesso negado")
         }
 
     case pb.UserType_RECEPCIONISTA:
         if targetRole == pb.UserType_ADMINISTRADOR {
-            return nil, fmt.Errorf("acesso negado: recepcionista não pode visualizar administradores")
+            return nil, status.Error(codes.PermissionDenied, "acesso negado")
         }
 
     case pb.UserType_ADMINISTRADOR:
         // Administrador não possui restrições de visualização.
     
     default:
-        return nil, fmt.Errorf("acesso negado")
+        return nil, status.Error(codes.PermissionDenied, "acesso negado")
     }
 
     return &user, nil
 }
 
 func (s *UserServer) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*pb.ListUsersResponse, error) {
-    requesterRole, err := s.getRequesterRole(req.Token)
+    requesterRole, err := s.getRequesterRole(ctx, req.Token)
     if err != nil {
         return nil, err
     }
 
     if requesterRole == pb.UserType_PACIENTE {
-        return nil, fmt.Errorf("acesso negado: pacientes não têm permissão para listar usuários")
+        return nil, status.Error(codes.PermissionDenied, "acesso negado")
     }
 
     // Variáveis para montar a query dinâmica
     var query string
-    var args []interface{}
+    var tipo string
 
     // Verifica se requisitante possui autorização para listar usuários. 
     switch requesterRole {
     case pb.UserType_MEDICO:
         if req.UserType != pb.UserType_UNKNOWN_ROLE && req.UserType != pb.UserType_PACIENTE {
-            return nil, fmt.Errorf("acesso negado: médicos só podem listar pacientes")
+            return nil, status.Error(codes.PermissionDenied, "acesso negado")
         }
 
-        query = `SELECT id, nome, email, tipo FROM usuario WHERE tipo = 'PACIENTE' LIMIT $1 OFFSET $2`
-        args = []interface{}{req.Limit, req.Offset}
+        query = `SELECT id, nome, email, tipo FROM usuario WHERE tipo = 'PACIENTE'`
 
     case pb.UserType_RECEPCIONISTA:
         if req.UserType == pb.UserType_ADMINISTRADOR {
-            return nil, fmt.Errorf("acesso negado: recepcionista não pode listar administradores")
+            return nil, status.Error(codes.PermissionDenied, "acesso negado")
         }
 
         if req.UserType != pb.UserType_UNKNOWN_ROLE { // Aplicando o filtro por tipo do usuário.
-            query = `SELECT id, nome, email, tipo FROM usuario WHERE tipo = $1 LIMIT $2 OFFSET $3`
-            args = []interface{}{req.UserType.String(), req.Limit, req.Offset}
+            query = `SELECT id, nome, email, tipo FROM usuario WHERE tipo = $1`
+            tipo = req.UserType.String()
         } else {
-            query = `SELECT id, nome, email, tipo FROM usuario WHERE tipo != 'ADMINISTRADOR' LIMIT $1 OFFSET $2`
-            args = []interface{}{req.Limit, req.Offset}
+            query = `SELECT id, nome, email, tipo FROM usuario WHERE tipo != 'ADMINISTRADOR'`
         }
 
     case pb.UserType_ADMINISTRADOR:
         if req.UserType != pb.UserType_UNKNOWN_ROLE { // Aplicando o filtro por tipo do usuário.
-            query = `SELECT id, nome, email, tipo FROM usuario WHERE tipo = $1 LIMIT $2 OFFSET $3`
-            args = []interface{}{req.UserType.String(), req.Limit, req.Offset}
+            query = `SELECT id, nome, email, tipo FROM usuario WHERE tipo = $1`
+            tipo = req.UserType.String()
         } else {
-            query = `SELECT id, nome, email, tipo FROM usuario LIMIT $1 OFFSET $2`
-            args = []interface{}{req.Limit, req.Offset}
+            query = `SELECT id, nome, email, tipo FROM usuario`
         }
+    
+    default:
+        return nil, status.Error(codes.PermissionDenied, "acesso negado")
     }
 
     // Executa a query
-    rows, err := s.DB.Query(query, args...)
+    var rows *sql.Rows
+    if tipo != "" {
+        rows, err = s.DB.QueryContext(ctx, query, tipo)
+    } else {
+        rows, err = s.DB.QueryContext(ctx, query)
+    }
+
     if err != nil {
-        return nil, fmt.Errorf("erro ao listar usuários: %v", err)
+        return nil, status.Error(codes.Internal, "erro interno no servidor")
     }
     defer rows.Close()
 
@@ -181,21 +194,27 @@ func (s *UserServer) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*
     for rows.Next() {
         var u pb.UserResponse
         var tipoStr string
-        if err := rows.Scan(&u.UserId, &u.Name, &u.Email, &tipoStr); err != nil {
-            continue
+
+        err := rows.Scan(&u.UserId, &u.Name, &u.Email, &tipoStr)
+        if err != nil {
+            return nil, status.Error(codes.Internal, "erro interno no servidor")
         }
+
         u.UserType = stringToRole(tipoStr)
         users = append(users, &u)
     }
 
+    if err := rows.Err(); err != nil {
+        return nil, status.Error(codes.Internal, "erro interno no servidor")
+    }
+
     return &pb.ListUsersResponse{
         Users: users,
-        Total: int32(len(users)),
     }, nil
 }
 
 func (s *UserServer) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest) (*pb.UserResponse, error) {
-    requesterRole, err := s.getRequesterRole(req.Token)
+    requesterRole, err := s.getRequesterRole(ctx, req.Token)
     if err != nil {
         return nil, err
     }
@@ -204,19 +223,20 @@ func (s *UserServer) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest) 
 
     // Busca os dados atuais do usuário
     queryTarget := `SELECT nome, email, senha, tipo FROM usuario WHERE id = $1`
-    err = s.DB.QueryRow(queryTarget, req.UserId).Scan(&currentName, &currentEmail, &currentPasswordHash, &targetRoleStr)
+    err = s.DB.QueryRowContext(ctx, queryTarget, req.UserId).Scan(&currentName, &currentEmail, &currentPasswordHash, &targetRoleStr)
     
     if err == sql.ErrNoRows {
-        return nil, fmt.Errorf("usuário não encontrado")
-    } else if err != nil {
-        return nil, fmt.Errorf("erro ao buscar usuário: %v", err)
+        return nil, status.Error(codes.NotFound, "usuário não encontrado")
+    } 
+    if err != nil {
+        return nil, status.Error(codes.Internal, "erro interno no servidor")
     }
 
     // Verifica se requisitante possui autorização para editar o usuário. 
     allowed := false
     targetRole := stringToRole(targetRoleStr)
 
-    if req.Token == req.UserId { // Todos podem ver o próprio perfil.
+    if req.Token == req.UserId { // Todos podem atualizar o próprio perfil.
         allowed = true
     } else {
         switch requesterRole {
@@ -232,7 +252,7 @@ func (s *UserServer) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest) 
     }
 
     if !allowed {
-        return nil, fmt.Errorf("permissão negada: %s não pode alterar %s", requesterRole, targetRole)
+        return nil, status.Error(codes.PermissionDenied, "acesso negado")
     }
     
     // Se os dados para atualizar estiverem vazios, mantém os dados atuais.
@@ -248,13 +268,13 @@ func (s *UserServer) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest) 
         var emailExists bool
         checkQuery := `SELECT EXISTS(SELECT 1 FROM usuario WHERE email = $1 AND id != $2)`
 
-        if err := s.DB.QueryRow(checkQuery, finalEmail, req.UserId).Scan(&emailExists); 
+        if err := s.DB.QueryRowContext(ctx, checkQuery, finalEmail, req.UserId).Scan(&emailExists); 
         err != nil {
-            return nil, fmt.Errorf("erro ao validar email: %v", err)
+            return nil, status.Error(codes.Internal, "erro interno no servidor")
         }
 
         if emailExists {
-            return nil, fmt.Errorf("o email '%s' já está em uso", finalEmail)
+            return nil, status.Error(codes.AlreadyExists, "email já cadastrado")
         }
     }
 
@@ -262,7 +282,7 @@ func (s *UserServer) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest) 
     if req.Password != "" { // Se for uma nova senha é necessário gerar um novo hash.
         hashedBytes, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
         if err != nil {
-            return nil, fmt.Errorf("erro ao gerar hash da senha: %v", err)
+            return nil, status.Error(codes.Internal, "erro interno no servidor")
         }
         finalPasswordHash = string(hashedBytes)
     }
@@ -270,7 +290,7 @@ func (s *UserServer) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest) 
     updateQuery := `UPDATE usuario SET nome=$1, email=$2, senha=$3 WHERE id=$4`    
     _, err = s.DB.ExecContext(ctx, updateQuery, finalName, finalEmail, finalPasswordHash, req.UserId)
     if err != nil {
-        return nil, fmt.Errorf("erro ao persistir atualização: %v", err)
+        return nil, status.Error(codes.Internal, "erro interno no servidor")
     }
 
     return &pb.UserResponse{
@@ -281,20 +301,21 @@ func (s *UserServer) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest) 
     }, nil
 }
 
-func (s *UserServer) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest) (*pb.Empty, error) {
-    requesterRole, err := s.getRequesterRole(req.Token)
+func (s *UserServer) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest) (*emptypb.Empty, error) {
+    requesterRole, err := s.getRequesterRole(ctx, req.Token)
     if err != nil {
         return nil, err
     }
 
     var targetRoleStr string
     queryTarget := `SELECT tipo FROM usuario WHERE id = $1`
-    err = s.DB.QueryRow(queryTarget, req.UserId).Scan(&targetRoleStr)
+    err = s.DB.QueryRowContext(ctx, queryTarget, req.UserId).Scan(&targetRoleStr)
 
     if err == sql.ErrNoRows {
-        return nil, fmt.Errorf("usuário não encontrado")
-    } else if err != nil {
-        return nil, fmt.Errorf("erro ao buscar usuário: %v", err)
+        return nil, status.Error(codes.NotFound, "usuário não encontrado")
+    } 
+    if err != nil {
+        return nil, status.Error(codes.Internal, "erro interno no servidor")
     }
 
     // Verifica se requisitante possui autorização para deletar o usuário. 
@@ -317,14 +338,14 @@ func (s *UserServer) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest) 
     }
 
     if !allowed {
-        return nil, fmt.Errorf("permissão negada: %s não pode deletar %s", requesterRole, targetRole)
+        return nil, status.Error(codes.PermissionDenied, "acesso negado")
     }
 
     deleteQuery := `DELETE FROM usuario WHERE id = $1`
     _, err = s.DB.ExecContext(ctx, deleteQuery, req.UserId)
     if err != nil {
-        return nil, fmt.Errorf("erro ao deletar usuário: %v", err)
+        return nil, status.Error(codes.Internal, "erro interno no servidor")
     }
 
-    return &pb.Empty{}, nil
+    return &emptypb.Empty{}, nil
 }

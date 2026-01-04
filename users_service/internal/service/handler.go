@@ -1,8 +1,12 @@
 package service
 
 import (
+    "context"
     "database/sql"
-    "fmt"
+
+    "google.golang.org/grpc/status"
+    "google.golang.org/grpc/codes"
+
     pb "users_service/pb"
 )
 
@@ -16,16 +20,20 @@ func NewUserService(db *sql.DB) *UserServer {
 }
 
 // Função auxiliar para identificar role do requisitante através do token.
-func (s *UserServer) getRequesterRole(token int32) (pb.UserType, error) {
+func (s *UserServer) getRequesterRole(ctx context.Context, token int32) (pb.UserType, error) {
 	if token == 0 {
-        return pb.UserType_UNKNOWN_ROLE, fmt.Errorf("acesso negado: login obrigatório.")
+        return pb.UserType_UNKNOWN_ROLE, status.Error(codes.Unauthenticated, "login obrigatório")
     }
 
     var roleStr string
     query := `SELECT tipo FROM usuario WHERE id = $1`
-    err := s.DB.QueryRow(query, token).Scan(&roleStr)
+    err := s.DB.QueryRowContext(ctx, query, token).Scan(&roleStr)
+
+    if err == sql.ErrNoRows {
+        return pb.UserType_UNKNOWN_ROLE, status.Error(codes.PermissionDenied, "usuário não encontrado")
+    }
     if err != nil {
-        return pb.UserType_UNKNOWN_ROLE, fmt.Errorf("usuário solicitante (ID %d) não encontrado", token)
+        return pb.UserType_UNKNOWN_ROLE, status.Error(codes.Internal, "erro interno no servidor")
     }
 
     return stringToRole(roleStr), nil
