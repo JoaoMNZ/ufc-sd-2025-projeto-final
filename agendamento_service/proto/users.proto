@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package users;
+
+option go_package = "./pb";
+
+import "google/protobuf/empty.proto";
+
+service UserService {
+  rpc CreateUser(CreateUserRequest) returns (UserResponse);
+  rpc AuthenticateUser(AuthRequest) returns (AuthResponse);
+  rpc GetUser(GetUserRequest) returns (UserResponse);
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  rpc UpdateUser(UpdateUserRequest) returns (UserResponse);
+  rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
+}
+
+enum UserType {
+  UNKNOWN_ROLE = 0;
+  ADMINISTRADOR = 1;
+  MEDICO = 2;
+  RECEPCIONISTA = 3;
+  PACIENTE = 4;
+}
+
+message CreateUserRequest {
+  int32 token = 1;
+  string name = 2;
+  string email = 3;
+  string password = 4;
+  UserType user_type = 5;
+}
+
+message AuthRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message AuthResponse {
+  int32 token = 1;
+  int32 user_id = 2;
+  string name = 3;
+  UserType user_type = 4;
+}
+
+message GetUserRequest {
+  int32 token = 1;
+  int32 user_id = 2;
+}
+
+message ListUsersRequest {
+  int32 token = 1;
+  UserType user_type = 2; // Filtro opcional por tipo de usuário.
+}
+
+message ListUsersResponse {
+  repeated UserResponse users = 1;
+}
+
+message UpdateUserRequest {
+  int32 token = 1;
+  int32 user_id = 2;
+  string name = 3;
+  string email = 4;
+  string password = 5;
+}
+
+message UserResponse {
+  int32 user_id = 1;
+  string name = 2;
+  string email = 3;
+  UserType user_type = 4;
+}
+
+message DeleteUserRequest {
+  int32 token = 1;
+  int32 user_id = 2;
+}
