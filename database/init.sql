@@ -30,9 +30,7 @@ CREATE TABLE agendamento (
   CONSTRAINT chk_horario_valido CHECK (horario >= 6 AND horario <= 16) -- Horário de funcionamento das 6:00 às 17:00.
 );
 
--- Usuários para teste inicial.
+-- Sistema sempre deve iniciar com uma conta ADM
+-- Senha "123" hasheada com Bcrypt custo 12.
 INSERT INTO usuario (nome, email, senha, tipo) VALUES 
-('Gusttavo', 'gusttavo@email.com', '123', 'ADMINISTRADOR'),  -- Sistema sempre deve iniciar com uma conta ADM
-('Josué', 'josue@email.com', '123', 'MEDICO'),
-('Vitor', 'vitor@email.com', '123', 'RECEPCIONISTA'),
-('Kauê', 'kaue@email.com', '123', 'PACIENTE');
+('Gusttavo', 'gusttavo@email.com', '$2a$12$L3rrvJ9UUm2mDRPVW0nPTOn872JWnys.ru6AugOEZ3AZINyi6JLYm', 'ADMINISTRADOR');

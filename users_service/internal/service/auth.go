@@ -8,7 +8,7 @@ import (
 
     "google.golang.org/grpc/status"
     "google.golang.org/grpc/codes"
-    
+
     pb "users_service/pb"
 )
 
@@ -37,8 +37,8 @@ func (s *UserServer) AuthenticateUser(ctx context.Context, req *pb.AuthRequest) 
     }
 
     return &pb.AuthResponse{
-        Token:    id,
-        UserId:   id,
+        Token: id,
+        UserId: id,
         Name: name,
         UserType: stringToRole(tipoStr),
     }, nil
