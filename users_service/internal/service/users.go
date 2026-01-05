@@ -107,7 +107,9 @@ func (s *UserServer) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.U
     // Verifica se requisitante possui autorização para visualizar o usuário. 
     switch requesterRole {
     case pb.UserType_PACIENTE:
-        return nil, status.Error(codes.PermissionDenied, "acesso negado")
+        if targetRole != pb.UserType_MEDICO {
+             return nil, status.Error(codes.PermissionDenied, "acesso negado")
+        }
 
     case pb.UserType_MEDICO:
         if targetRole != pb.UserType_PACIENTE {
@@ -135,16 +137,19 @@ func (s *UserServer) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*
         return nil, err
     }
 
-    if requesterRole == pb.UserType_PACIENTE {
-        return nil, status.Error(codes.PermissionDenied, "acesso negado")
-    }
-
     // Variáveis para montar a query dinâmica
     var query string
     var tipo string
 
     // Verifica se requisitante possui autorização para listar usuários. 
     switch requesterRole {
+    case pb.UserType_PACIENTE:
+        if req.UserType != pb.UserType_MEDICO {
+            return nil, status.Error(codes.PermissionDenied, "acesso negado")
+        }
+        
+        query = `SELECT id, nome, email, tipo FROM usuario WHERE tipo = 'MEDICO'`
+        
     case pb.UserType_MEDICO:
         if req.UserType != pb.UserType_UNKNOWN_ROLE && req.UserType != pb.UserType_PACIENTE {
             return nil, status.Error(codes.PermissionDenied, "acesso negado")
