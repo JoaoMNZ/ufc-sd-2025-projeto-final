@@ -30,7 +30,7 @@ func (s *UserServer) getRequesterRole(ctx context.Context, token int32) (pb.User
     err := s.DB.QueryRowContext(ctx, query, token).Scan(&roleStr)
 
     if err == sql.ErrNoRows {
-        return pb.UserType_UNKNOWN_ROLE, status.Error(codes.PermissionDenied, "usuário não encontrado")
+        return pb.UserType_UNKNOWN_ROLE, status.Error(codes.PermissionDenied, "token inválido")
     }
     if err != nil {
         return pb.UserType_UNKNOWN_ROLE, status.Error(codes.Internal, "erro interno no servidor")
