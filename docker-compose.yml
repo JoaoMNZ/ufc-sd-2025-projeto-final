@@ -46,5 +46,55 @@ services:
     volumes:
       - ./client_data:/root/.med_session
       
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: clinica_rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      
+  validation_service:
+    build: ./validacao_service
+    container_name: clinica_validation_service
+    restart: on-failure
+    ports:
+      - "5000:5000"
+    environment:
+      - VALIDATION_PORT=5000
+      
+  agendamento_service:
+    build: ./agendamento_service
+    container_name: clinica_agendamento_service
+    restart: on-failure
+    depends_on:
+      - database
+      - rabbitmq
+      - users_service
+      - validation_service
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_HOST=database
+      - DB_PORT=5432
+      - DB_USER=admin
+      - DB_PASSWORD=admin
+      - DB_NAME=clinica_db
+      
+      - RPC_PORT=8000
+      
+      - VALIDATION_HOST=validation_service
+      - VALIDATION_PORT=5000
+      
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASSWORD=guest
+      
+      - GRPC_ADDRESS=users_service:50051
+      
 volumes:
   postgres_data:
