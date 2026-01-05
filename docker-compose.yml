@@ -96,5 +96,21 @@ services:
       
       - GRPC_ADDRESS=users_service:50051
       
+  agendamento_client:
+    build:
+      context: ./clients
+      dockerfile: agendamento_client/Dockerfile
+    image: filipefernandes/agendamento-client:v1
+    container_name: clinica_agendamento_client
+    stdin_open: true
+    tty: true
+    command: tail -f /dev/null
+    depends_on:
+      - agendamento_service
+    environment:
+      - RPC_ADDRESS=http://agendamento_service:8000
+    volumes:
+      - ./client_data:/root/.med_session
+      
 volumes:
   postgres_data:
