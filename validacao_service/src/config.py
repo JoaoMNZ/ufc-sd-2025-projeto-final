@@ -1,6 +1,6 @@
 import os
 
 class Config:
-    HOST = "0.0.0.0"
-    PORT = int(os.getenv("VALIDATION_PORT"))
+    VALIDATION_HOST = "0.0.0.0"
+    VALIDATION_PORT = int(os.getenv("VALIDATION_PORT"))
     BUFFER_SIZE = 4096
