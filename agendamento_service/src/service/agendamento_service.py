@@ -8,8 +8,8 @@ class AgendamentoService:
         self.agendamento_repository = AgendamentoRepository()
         self.users_client = UsersClient()
 
-        self.VALID_ESPECIALIDADES = {'CARDIOLOGIA', 'PEDIATRIA', 'ORTOPEDIA', 'DERMATOLOGIA'}
-        self.VALID_PAGAMENTOS = {'CONVENIO', 'PARTICULAR'}
+        self.ESPECIALIDADES = {'CARDIOLOGIA', 'PEDIATRIA', 'ORTOPEDIA', 'DERMATOLOGIA'}
+        self.PAGAMENTOS = {'CONVENIO', 'PARTICULAR'}
 
     def agendar_consulta(self, token, paciente_id, medico_id, data, horario, especialidade, tipo_pagamento, dados_pagamento):
         if not all([token, paciente_id, medico_id, data, horario, especialidade, tipo_pagamento, dados_pagamento]):
@@ -19,9 +19,10 @@ class AgendamentoService:
             if not (6 <= horario <= 16):
                 raise xmlrpc.client.Fault(1, "Horário inválido. A clínica funciona das 06:00 às 17:00.")
             
-            validar_enum(especialidade, self.VALID_ESPECIALIDADES, "Especialidade")
-            validar_enum(tipo_pagamento, self.VALID_PAGAMENTOS, "Tipo de Pagamento")
+            validar_enum(especialidade, self.ESPECIALIDADES, "Especialidade")
+            validar_enum(tipo_pagamento, self.PAGAMENTOS, "Tipo de Pagamento")
 
+            # Consulta role do requisitante (token == requisitante_id).
             requester_role = self.users_client.get_user_role(token, token)
 
             if requester_role == "PACIENTE":
@@ -62,6 +63,6 @@ class AgendamentoService:
         except Exception as e:
             msg = str(e)
             if "interno" in msg.lower():
-                 raise xmlrpc.client.Fault(2, "Erro interno no servidor.")
+                 raise xmlrpc.client.Fault(2, msg)
             else:
                  raise xmlrpc.client.Fault(1, msg)
